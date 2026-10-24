@@ -80,13 +80,13 @@ object AudioFx {
         dp = null
     }
 
-    fun setEqEnabled(on: Boolean) {
+    fun enableEq(on: Boolean) {
         eqEnabled = on
         prefs.edit().putBoolean("eq", on).apply()
         try { eq?.enabled = on } catch (_: Exception) {}
     }
 
-    fun setLevelling(on: Boolean) {
+    fun enableLevelling(on: Boolean) {
         levelling = on
         prefs.edit().putBoolean("level", on).apply()
         try { dp?.enabled = on } catch (_: Exception) {}

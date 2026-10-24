@@ -44,9 +44,9 @@ fun EqualizerScreen() {
                     "Volume levelling",
                     "Evens out quiet and loud songs so you're not reaching for the volume.",
                     AudioFx.levelling
-                ) { AudioFx.setLevelling(it) }
+                ) { AudioFx.enableLevelling(it) }
                 HorizontalDivider(Modifier.padding(vertical = 8.dp))
-                SettingSwitch("Equalizer", "Shape the sound with presets or your own settings.", AudioFx.eqEnabled) { AudioFx.setEqEnabled(it) }
+                SettingSwitch("Equalizer", "Shape the sound with presets or your own settings.", AudioFx.eqEnabled) { AudioFx.enableEq(it) }
             }
             if (!AudioFx.available) {
                 item {
@@ -66,7 +66,7 @@ fun EqualizerScreen() {
                             itemsIndexed(AudioFx.presetNames) { i, name ->
                                 FilterChip(
                                     selected = AudioFx.preset == i,
-                                    onClick = { AudioFx.usePreset(i); if (!AudioFx.eqEnabled) AudioFx.setEqEnabled(true) },
+                                    onClick = { AudioFx.usePreset(i); if (!AudioFx.eqEnabled) AudioFx.enableEq(true) },
                                     label = { Text(name) },
                                     colors = FilterChipDefaults.filterChipColors(
                                         selectedContainerColor = GrooveAccent, selectedLabelColor = Color.Black
@@ -85,7 +85,7 @@ fun EqualizerScreen() {
                             )
                             Slider(
                                 value = level.toFloat(),
-                                onValueChange = { AudioFx.setBand(i, it.toInt()); if (!AudioFx.eqEnabled) AudioFx.setEqEnabled(true) },
+                                onValueChange = { AudioFx.setBand(i, it.toInt()); if (!AudioFx.eqEnabled) AudioFx.enableEq(true) },
                                 valueRange = lo.toFloat()..hi.toFloat(),
                                 colors = SliderDefaults.colors(thumbColor = Color.White, activeTrackColor = GrooveAccent),
                                 modifier = Modifier.weight(1f)
