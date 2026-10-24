@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- vinyl record -->
+    <path android:fillColor="#FF1E1E26"
+        android:pathData="M54,22a32,32 0,1 1,0 64a32,32 0,1 1,0 -64z" />
+    <path android:strokeColor="#FF34343F" android:strokeWidth="1.2"
+        android:pathData="M54,28a26,26 0,1 1,0 52a26,26 0,1 1,0 -52z" />
+    <path android:strokeColor="#FF34343F" android:strokeWidth="1.2"
+        android:pathData="M54,34a20,20 0,1 1,0 40a20,20 0,1 1,0 -40z" />
+    <!-- label -->
+    <path android:fillColor="#FFFF8A3D"
+        android:pathData="M54,42a12,12 0,1 1,0 24a12,12 0,1 1,0 -24z" />
+    <path android:fillColor="#FF0A0A0C"
+        android:pathData="M54,51.5a2.5,2.5 0,1 1,0 5a2.5,2.5 0,1 1,0 -5z" />
+    <!-- shine -->
+    <path android:strokeColor="#55FFFFFF" android:strokeWidth="2"
+        android:pathData="M33,42A24,24 0,0 1,42 31" />
+</vector>

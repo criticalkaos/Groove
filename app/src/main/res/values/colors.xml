@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="groove_black">#FF0A0A0C</color>
+    <color name="groove_card">#FF17171C</color>
+    <color name="groove_accent">#FFFF8A3D</color>
+    <color name="groove_icon_bg">#FF121218</color>
+</resources>
