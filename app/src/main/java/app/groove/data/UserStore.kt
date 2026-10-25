@@ -12,8 +12,24 @@ import org.json.JSONObject
 object UserStore {
     private lateinit var prefs: SharedPreferences
 
-    private val _favourites = MutableStateFlow<Set<Long>>(emptySet())
-    val favourites: StateFlow<Set<Long>> = _favourites.asStateFlow()
+    /** Liked songs, newest first. */
+    private val _favourites = MutableStateFlow<List<Long>>(emptyList())
+    val favourites: StateFlow<List<Long>> = _favourites.asStateFlow()
+
+    /** Favourite albums, newest first. */
+    private val _favAlbums = MutableStateFlow<List<Long>>(emptyList())
+    val favAlbums: StateFlow<List<Long>> = _favAlbums.asStateFlow()
+
+    /** The user's own genre tags for each album. */
+    private val _albumGenres = MutableStateFlow<Map<Long, List<String>>>(emptyMap())
+    val albumGenres: StateFlow<Map<Long, List<String>>> = _albumGenres.asStateFlow()
+
+    /** Jukebox filter: null = all albums, FAV_FILTER = favourite albums, otherwise a genre. */
+    private val _filter = MutableStateFlow<String?>(null)
+    val filter: StateFlow<String?> = _filter.asStateFlow()
+
+    private val _wallColumns = MutableStateFlow(4)
+    val wallColumns: StateFlow<Int> = _wallColumns.asStateFlow()
 
     private val _playlists = MutableStateFlow<List<Playlist>>(emptyList())
     val playlists: StateFlow<List<Playlist>> = _playlists.asStateFlow()
@@ -35,7 +51,18 @@ object UserStore {
 
     fun init(context: Context) {
         prefs = context.getSharedPreferences("groove", Context.MODE_PRIVATE)
-        _favourites.value = prefs.getString("favourites", "[]")!!.toLongList().toSet()
+        _favourites.value = prefs.getString("favourites", "[]")!!.toLongList().distinct()
+        _favAlbums.value = prefs.getString("favAlbums", "[]")!!.toLongList().distinct()
+        _wallColumns.value = prefs.getInt("wallColumns", 4)
+        _albumGenres.value = try {
+            val o = JSONObject(prefs.getString("albumGenres", "{}")!!)
+            o.keys().asSequence().associate { k ->
+                val arr = o.getJSONArray(k)
+                k.toLong() to (0 until arr.length()).map { arr.getString(it) }
+            }
+        } catch (e: Exception) {
+            emptyMap()
+        }
         _recentAlbums.value = prefs.getString("recent", "[]")!!.toLongList()
         _selectedFolders.value = prefs.getStringSet("folders", emptySet())!!.toSet()
         _onlineLyrics.value = prefs.getBoolean("onlineLyrics", true)
@@ -55,11 +82,59 @@ object UserStore {
     // ---- favourites
     fun isFavourite(id: Long) = id in _favourites.value
     fun toggleFavourite(id: Long) {
-        val s = _favourites.value.toMutableSet()
-        if (!s.add(id)) s.remove(id)
-        _favourites.value = s
-        prefs.edit().putString("favourites", JSONArray(s.toList()).toString()).apply()
+        val l = _favourites.value.toMutableList()
+        if (!l.remove(id)) l.add(0, id)
+        _favourites.value = l
+        prefs.edit().putString("favourites", JSONArray(l).toString()).apply()
     }
+
+    fun isFavAlbum(id: Long) = id in _favAlbums.value
+    fun toggleFavAlbum(id: Long) {
+        val l = _favAlbums.value.toMutableList()
+        if (!l.remove(id)) l.add(0, id)
+        _favAlbums.value = l
+        prefs.edit().putString("favAlbums", JSONArray(l).toString()).apply()
+    }
+
+    // ---- genres
+    fun genresOf(albumId: Long): List<String> = _albumGenres.value[albumId].orEmpty()
+
+    fun setAlbumGenres(albumId: Long, genres: List<String>) {
+        val clean = genres.map { it.trim() }.filter { it.isNotEmpty() }.distinctBy { it.lowercase() }
+        val m = _albumGenres.value.toMutableMap()
+        if (clean.isEmpty()) m.remove(albumId) else m[albumId] = clean
+        _albumGenres.value = m
+        val o = JSONObject()
+        m.forEach { (k, v) -> o.put(k.toString(), JSONArray(v)) }
+        prefs.edit().putString("albumGenres", o.toString()).apply()
+        val f = _filter.value
+        if (f != null && f != FAV_FILTER && m.values.none { f in it }) _filter.value = null
+    }
+
+    /** Genres in use, most-used first. */
+    fun genresInUse(): List<String> = _albumGenres.value.values.flatten()
+        .groupingBy { it }.eachCount().entries
+        .sortedWith(compareByDescending<Map.Entry<String, Int>> { it.value }.thenBy { it.key.lowercase() })
+        .map { it.key }
+
+    /** Genres to offer when tagging: ones already used, then the starter list. */
+    fun genreSuggestions(): List<String> {
+        val used = genresInUse()
+        return used + STARTER_GENRES.filter { g -> used.none { it.equals(g, ignoreCase = true) } }
+    }
+
+    fun setFilter(f: String?) { _filter.value = f }
+
+    fun setWallColumns(n: Int) {
+        _wallColumns.value = n
+        prefs.edit().putInt("wallColumns", n).apply()
+    }
+
+    const val FAV_FILTER = "\u2605favourites"
+    val STARTER_GENRES = listOf(
+        "Rock", "Pop", "Jazz", "Soul", "Hip-Hop", "Electronic", "Classical",
+        "Country", "Reggae", "Metal", "Folk", "Blues",
+    )
 
     // ---- recently played albums
     fun addRecentAlbum(albumId: Long) {

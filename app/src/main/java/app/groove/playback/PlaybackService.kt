@@ -43,6 +43,7 @@ class PlaybackService : MediaSessionService() {
         player.addListener(object : Player.Listener {
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 Library.track(mediaItem?.mediaId)?.let { UserStore.addRecentAlbum(it.albumId) }
+                AudioFx.refresh()
                 if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO && SleepTimer.stopAtEndOfTrack) {
                     SleepTimer.cancel()
                     player.pause()

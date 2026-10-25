@@ -48,6 +48,7 @@ import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -84,6 +85,7 @@ import app.groove.data.LyricsRepo
 import app.groove.data.Track
 import app.groove.data.UserStore
 import app.groove.data.formatDuration
+import app.groove.playback.AudioFx
 import app.groove.playback.Playback
 import app.groove.playback.SleepTimer
 import kotlinx.coroutines.delay
@@ -183,6 +185,7 @@ fun NowPlayingScreen() {
                 }
             }
 
+            SoundBadge(accent)
             Spacer(Modifier.height(8.dp))
             val dur = st.durationMs.coerceAtLeast(1)
             Slider(
@@ -234,7 +237,9 @@ fun NowPlayingScreen() {
                 SmallAction(Icons.Filled.Bedtime, sleepLabel(), SleepTimer.active(), accent) { sleepDialog = true }
                 SmallAction(Icons.Filled.Lyrics, "Lyrics", showLyrics, accent) { showLyrics = !showLyrics }
                 SmallAction(Icons.AutoMirrored.Filled.QueueMusic, "Queue", false, accent) { Nav.go(Screen.Queue) }
-                SmallAction(Icons.Filled.Equalizer, "Sound", false, accent) { Nav.back(); Nav.go(Screen.Equalizer) }
+                SmallAction(Icons.Filled.Equalizer, "Sound", AudioFx.activeKey != null || AudioFx.current.boostDb > 0, accent) {
+                    Nav.back(); Nav.go(Screen.Equalizer(AudioFx.activeKey))
+                }
             }
         }
     }
@@ -435,6 +440,43 @@ fun QueueScreen() {
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+
+/** Shows which saved sound is playing (album or genre) and any volume boost. */
+@Composable
+private fun SoundBadge(accent: Color) {
+    val key = AudioFx.activeKey
+    val boost = AudioFx.current.boostDb
+    if (key == null && boost == 0) return
+    var menu by remember { mutableStateOf(false) }
+    Box(Modifier.fillMaxWidth().padding(top = 6.dp)) {
+        Row(
+            Modifier
+                .clip(RoundedCornerShape(50))
+                .background(accent.copy(alpha = 0.2f))
+                .clickable { menu = true }
+                .padding(horizontal = 12.dp, vertical = 5.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(Icons.Filled.Equalizer, null, tint = accent, modifier = Modifier.size(16.dp))
+            Spacer(Modifier.width(6.dp))
+            Text(
+                listOfNotNull(key?.let { AudioFx.label(it) }, boost.takeIf { it > 0 }?.let { "Boost +$it dB" }).joinToString(" · "),
+                fontSize = 12.sp, color = Color.White
+            )
+        }
+        DropdownMenu(menu, { menu = false }) {
+            DropdownMenuItem(
+                text = { Text("Edit ${AudioFx.label(key).lowercase()}") },
+                onClick = { menu = false; Nav.back(); Nav.go(Screen.Equalizer(key)) })
+            if (key != null) {
+                DropdownMenuItem(
+                    text = { Text("Use normal sound for this album") },
+                    onClick = { menu = false; AudioFx.useNormalForNow() })
             }
         }
     }

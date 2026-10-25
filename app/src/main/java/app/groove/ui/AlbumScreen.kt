@@ -16,6 +16,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.filled.Equalizer
+import androidx.compose.material.icons.filled.Sell
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
+import app.groove.data.UserStore
+import app.groove.playback.AudioFx
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
@@ -65,6 +74,7 @@ fun BackTopBar(title: String, actions: @Composable RowScope.() -> Unit = {}) {
 }
 
 /** A proper album page: big cover, details, and the tracklist split by disc. */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun AlbumScreen(id: Long) {
     Library.albums.collectAsState().value // re-read when the library changes
@@ -75,6 +85,10 @@ fun AlbumScreen(id: Long) {
     }
     val accent = rememberAccent(album)
     var menu by remember { mutableStateOf(false) }
+    var tagging by remember { mutableStateOf(false) }
+    val genreMap by UserStore.albumGenres.collectAsState()
+    val genres = genreMap[album.id].orEmpty()
+    val hasSound = AudioFx.profiles.containsKey(AudioFx.albumKey(album.id))
 
     Box(Modifier.fillMaxSize()) {
         Box(
@@ -85,6 +99,7 @@ fun AlbumScreen(id: Long) {
         LazyColumn(Modifier.fillMaxSize()) {
             item {
                 BackTopBar("") {
+                    AlbumHeart(album.id, accent)
                     Box {
                         IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, "More") }
                         DropdownMenu(menu, { menu = false }) {
@@ -132,7 +147,38 @@ fun AlbumScreen(id: Long) {
                             Icon(Icons.Filled.Shuffle, null, tint = Color.White); Spacer(Modifier.width(6.dp)); Text("Shuffle", color = Color.White)
                         }
                     }
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(16.dp))
+                    // Genre tags and saved sound
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        genres.forEach { g ->
+                            AssistChip(
+                                onClick = { Nav.go(Screen.GenrePage(g)) },
+                                label = { Text(g) },
+                                colors = AssistChipDefaults.assistChipColors(containerColor = accent.copy(alpha = 0.18f), labelColor = Color.White),
+                                border = null,
+                            )
+                        }
+                        AssistChip(
+                            onClick = { tagging = true },
+                            label = { Text(if (genres.isEmpty()) "Add genre" else "Edit") },
+                            leadingIcon = { Icon(Icons.Filled.Sell, null, Modifier.size(16.dp)) },
+                            colors = AssistChipDefaults.assistChipColors(labelColor = TextDim, leadingIconContentColor = TextDim),
+                        )
+                        AssistChip(
+                            onClick = { Nav.go(Screen.Equalizer(AudioFx.albumKey(album.id))) },
+                            label = { Text(if (hasSound) "Album sound: on" else "Album sound") },
+                            leadingIcon = { Icon(Icons.Filled.Equalizer, null, Modifier.size(16.dp)) },
+                            colors = AssistChipDefaults.assistChipColors(
+                                labelColor = if (hasSound) accent else TextDim,
+                                leadingIconContentColor = if (hasSound) accent else TextDim
+                            ),
+                        )
+                    }
+                    Spacer(Modifier.height(8.dp))
                 }
             }
             val multiDisc = album.discCount > 1
@@ -160,4 +206,5 @@ fun AlbumScreen(id: Long) {
             }
         }
     }
+    if (tagging) GenreDialog(album.id) { tagging = false }
 }

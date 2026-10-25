@@ -65,7 +65,10 @@ sealed interface Screen {
     data object Search : Screen
     data object NowPlaying : Screen
     data object Queue : Screen
-    data object Equalizer : Screen
+    data class Equalizer(val target: String? = null) : Screen // null = normal sound
+    data object Genres : Screen
+    data class GenrePage(val name: String) : Screen
+    data object Wall : Screen
     data object Folders : Screen
 }
 
@@ -151,9 +154,9 @@ fun GrooveRoot() {
         }
 
         val top = Nav.top
-        val overlay = top is Screen.NowPlaying || top is Screen.Queue
+        val overlay = top is Screen.NowPlaying || top is Screen.Queue || top is Screen.Wall
         // Base layer: the browsing screens, with mini player and tabs.
-        val base = Nav.stack.lastOrNull { it !is Screen.NowPlaying && it !is Screen.Queue } ?: Screen.Home
+        val base = Nav.stack.lastOrNull { it !is Screen.NowPlaying && it !is Screen.Queue && it !is Screen.Wall } ?: Screen.Home
         Scaffold(
             containerColor = GrooveBlack,
             contentWindowInsets = WindowInsets(0),
@@ -182,7 +185,9 @@ fun GrooveRoot() {
                         is Screen.ArtistPage -> ArtistScreen(s.name)
                         is Screen.PlaylistPage -> PlaylistScreen(s.id)
                         is Screen.Search -> SearchScreen()
-                        is Screen.Equalizer -> EqualizerScreen()
+                        is Screen.Equalizer -> EqualizerScreen(s.target)
+                        is Screen.Genres -> GenresScreen()
+                        is Screen.GenrePage -> GenreScreen(s.name)
                         is Screen.Folders -> FoldersScreen()
                         else -> {}
                     }
@@ -200,6 +205,7 @@ fun GrooveRoot() {
             when (s) {
                 is Screen.NowPlaying -> NowPlayingScreen()
                 is Screen.Queue -> QueueScreen()
+                is Screen.Wall -> CoverWall()
                 else -> Box(Modifier)
             }
         }

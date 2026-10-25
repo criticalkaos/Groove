@@ -39,8 +39,10 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.automirrored.filled.Sort
-import androidx.compose.material.icons.filled.ViewCarousel
+import androidx.compose.material.icons.filled.Sell
 import androidx.compose.material3.Button
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -53,6 +55,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -83,42 +86,94 @@ fun JukeboxScreen() {
     val folders by UserStore.selectedFolders.collectAsState()
     val loaded by Library.loaded.collectAsState()
     val scanning by Library.scanning.collectAsState()
-    val grid by UserStore.gridMode.collectAsState()
     val sort by UserStore.albumSort.collectAsState()
-
-    val albums = remember(all, sort) {
-        when (sort) {
-            "title" -> all.sortedBy { Library.sortKey(it.title) }
-            "year" -> all.sortedWith(compareByDescending<Album> { it.year }.thenBy { Library.sortKey(it.artist) })
-            "added" -> all.sortedByDescending { it.dateAdded }
-            else -> all
-        }
-    }
+    val filter by UserStore.filter.collectAsState()
+    val albums = rememberJukeboxAlbums()
 
     Column(Modifier.fillMaxSize()) {
-        JukeboxTopBar(grid, sort)
+        JukeboxTopBar(sort)
         when {
             folders.isEmpty() -> EmptyState(
                 "Pick your music folders",
                 "Choose which folders on your phone Groove should play from.",
                 "Choose folders"
             ) { Nav.go(Screen.Folders) }
-            !loaded || (scanning && albums.isEmpty()) -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            !loaded || (scanning && all.isEmpty()) -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = GrooveAccent)
             }
-            albums.isEmpty() -> EmptyState(
+            all.isEmpty() -> EmptyState(
                 "No music found",
                 "There are no songs in the folders you picked.",
                 "Change folders"
             ) { Nav.go(Screen.Folders) }
-            grid -> AlbumGrid(albums)
-            else -> CoverFlow(albums, sort)
+            else -> {
+                FilterChips()
+                if (albums.isEmpty()) {
+                    EmptyState(
+                        if (filter == UserStore.FAV_FILTER) "No favourite albums yet" else "No albums here",
+                        if (filter == UserStore.FAV_FILTER) "Tap the heart on any album to add it." else "Tag albums with this genre from their album page.",
+                        "Show all albums"
+                    ) { UserStore.setFilter(null) }
+                } else {
+                    key(filter, sort) { CoverFlow(albums, sort) }
+                }
+            }
+        }
+    }
+}
+
+/** All albums in the chosen sort order, narrowed by the current filter chip. */
+@Composable
+fun rememberJukeboxAlbums(): List<Album> {
+    val all by Library.albums.collectAsState()
+    val sort by UserStore.albumSort.collectAsState()
+    val filter by UserStore.filter.collectAsState()
+    val favAlbums by UserStore.favAlbums.collectAsState()
+    val genres by UserStore.albumGenres.collectAsState()
+    return remember(all, sort, filter, favAlbums, genres) {
+        val sorted = when (sort) {
+            "title" -> all.sortedBy { Library.sortKey(it.title) }
+            "year" -> all.sortedWith(compareByDescending<Album> { it.year }.thenBy { Library.sortKey(it.artist) })
+            "added" -> all.sortedByDescending { it.dateAdded }
+            else -> all
+        }
+        when (filter) {
+            null -> sorted
+            UserStore.FAV_FILTER -> sorted.filter { it.id in favAlbums }
+            else -> sorted.filter { a -> genres[a.id].orEmpty().any { it == filter } }
+        }
+    }
+}
+
+/** All · ★ Favourites · genres in use. */
+@Composable
+private fun FilterChips() {
+    val filter by UserStore.filter.collectAsState()
+    val genres by UserStore.albumGenres.collectAsState()
+    val inUse = remember(genres) { UserStore.genresInUse() }
+    val options = listOf<Pair<String?, String>>(null to "All", UserStore.FAV_FILTER to "\u2605 Favourites") + inUse.map { it to it }
+    LazyRow(
+        contentPadding = PaddingValues(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.padding(top = 4.dp)
+    ) {
+        items(options, key = { it.first ?: "all" }) { (value, label) ->
+            FilterChip(
+                selected = filter == value,
+                onClick = { UserStore.setFilter(value) },
+                label = { Text(label) },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = GrooveAccent, selectedLabelColor = Color.Black,
+                    containerColor = GrooveCard, labelColor = Color.White
+                ),
+                border = null,
+            )
         }
     }
 }
 
 @Composable
-private fun JukeboxTopBar(grid: Boolean, sort: String) {
+private fun JukeboxTopBar(sort: String) {
     var sortMenu by remember { mutableStateOf(false) }
     var more by remember { mutableStateOf(false) }
     Row(
@@ -127,9 +182,7 @@ private fun JukeboxTopBar(grid: Boolean, sort: String) {
     ) {
         Text("Groove", style = MaterialTheme.typography.headlineLarge, modifier = Modifier.weight(1f))
         IconButton(onClick = { Nav.go(Screen.Search) }) { Icon(Icons.Filled.Search, "Search") }
-        IconButton(onClick = { UserStore.setGridMode(!grid) }) {
-            Icon(if (grid) Icons.Filled.ViewCarousel else Icons.Filled.GridView, if (grid) "Jukebox view" else "Grid view")
-        }
+        IconButton(onClick = { Nav.go(Screen.Wall) }) { Icon(Icons.Filled.GridView, "Cover wall") }
         Box {
             IconButton(onClick = { sortMenu = true }) { Icon(Icons.AutoMirrored.Filled.Sort, "Sort") }
             DropdownMenu(sortMenu, { sortMenu = false }) {
@@ -145,8 +198,10 @@ private fun JukeboxTopBar(grid: Boolean, sort: String) {
             DropdownMenu(more, { more = false }) {
                 DropdownMenuItem(text = { Text("Music folders") }, leadingIcon = { Icon(Icons.Filled.Folder, null) },
                     onClick = { more = false; Nav.go(Screen.Folders) })
-                DropdownMenuItem(text = { Text("Equalizer & sound") }, leadingIcon = { Icon(Icons.Filled.Equalizer, null) },
-                    onClick = { more = false; Nav.go(Screen.Equalizer) })
+                DropdownMenuItem(text = { Text("Genres") }, leadingIcon = { Icon(Icons.Filled.Sell, null) },
+                    onClick = { more = false; Nav.go(Screen.Genres) })
+                DropdownMenuItem(text = { Text("Sound & settings") }, leadingIcon = { Icon(Icons.Filled.Equalizer, null) },
+                    onClick = { more = false; Nav.go(Screen.Equalizer()) })
             }
         }
     }
@@ -250,7 +305,7 @@ private fun CoverFlow(albums: List<Album>, sort: String) {
                             color = TextDim, style = MaterialTheme.typography.bodyMedium
                         )
                         Spacer(Modifier.height(16.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                             Button(
                                 onClick = { Playback.play(focused.tracks) },
                                 colors = ButtonDefaults.buttonColors(containerColor = accent, contentColor = Color.Black)
@@ -258,6 +313,7 @@ private fun CoverFlow(albums: List<Album>, sort: String) {
                             OutlinedButton(onClick = { Playback.play(focused.tracks, shuffle = true) }) {
                                 Icon(Icons.Filled.Shuffle, null, tint = Color.White); Spacer(Modifier.width(6.dp)); Text("Shuffle", color = Color.White)
                             }
+                            AlbumHeart(focused.id, accent)
                         }
                         Spacer(Modifier.height(12.dp))
                     }

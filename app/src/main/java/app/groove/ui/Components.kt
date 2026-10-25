@@ -8,6 +8,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -34,6 +36,8 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -174,11 +178,16 @@ fun TrackRow(
                 )
             }
         }
-        if (track.id in favs) {
-            Icon(Icons.Filled.Favorite, null, tint = accent.copy(alpha = 0.8f), modifier = Modifier.size(16.dp))
-            Spacer(Modifier.width(8.dp))
-        }
         Text(formatDuration(track.durationMs), color = TextFaint, style = MaterialTheme.typography.bodyMedium)
+        val liked = track.id in favs
+        IconButton(onClick = { UserStore.toggleFavourite(track.id) }) {
+            Icon(
+                if (liked) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                if (liked) "Unlike" else "Like",
+                tint = if (liked) accent else TextFaint,
+                modifier = Modifier.size(20.dp)
+            )
+        }
         Box {
             IconButton(onClick = { menu = true }) {
                 Icon(Icons.Filled.MoreVert, "More", tint = TextDim)
@@ -348,5 +357,80 @@ fun DeleteMenuItem(label: String, onClick: () -> Unit) {
         text = { Text(label) },
         leadingIcon = { Icon(Icons.Filled.Delete, null) },
         onClick = onClick
+    )
+}
+
+/** Heart button for an album. */
+@Composable
+fun AlbumHeart(albumId: Long, tint: Color = GrooveAccent, size: Dp = 26.dp) {
+    val favAlbums by UserStore.favAlbums.collectAsState()
+    val on = albumId in favAlbums
+    IconButton(onClick = {
+        UserStore.toggleFavAlbum(albumId)
+        Toaster.show(if (on) "Removed from favourite albums" else "Added to favourite albums")
+    }) {
+        Icon(
+            if (on) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+            if (on) "Remove album from favourites" else "Add album to favourites",
+            tint = if (on) tint else Color.White,
+            modifier = Modifier.size(size)
+        )
+    }
+}
+
+/** Pick genres for an album: tap to toggle, or type a new one. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun GenreDialog(albumId: Long, onDismiss: () -> Unit) {
+    var chosen by remember { mutableStateOf(UserStore.genresOf(albumId)) }
+    var extra by remember { mutableStateOf(listOf<String>()) }
+    var newName by remember { mutableStateOf("") }
+    val options = (chosen + UserStore.genreSuggestions() + extra).distinctBy { it.lowercase() }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = GrooveCard,
+        title = { Text("Genres") },
+        text = {
+            Column {
+                Text(
+                    "Tap to add or remove. The first genre with saved sound is used for this album.",
+                    color = TextDim, style = MaterialTheme.typography.bodyMedium
+                )
+                Spacer(Modifier.height(12.dp))
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    options.forEach { g ->
+                        val on = chosen.any { it.equals(g, ignoreCase = true) }
+                        FilterChip(
+                            selected = on,
+                            onClick = { chosen = if (on) chosen.filterNot { it.equals(g, ignoreCase = true) } else chosen + g },
+                            label = { Text(g) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = GrooveAccent, selectedLabelColor = Color.Black
+                            )
+                        )
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(
+                        value = newName, onValueChange = { newName = it }, singleLine = true,
+                        label = { Text("New genre") }, modifier = Modifier.weight(1f)
+                    )
+                    IconButton(
+                        enabled = newName.isNotBlank(),
+                        onClick = {
+                            val g = newName.trim()
+                            if (chosen.none { it.equals(g, ignoreCase = true) }) chosen = chosen + g
+                            extra = extra + g
+                            newName = ""
+                        }
+                    ) { Icon(Icons.Filled.Add, "Add genre") }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { UserStore.setAlbumGenres(albumId, chosen); onDismiss() }) { Text("Save") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
     )
 }

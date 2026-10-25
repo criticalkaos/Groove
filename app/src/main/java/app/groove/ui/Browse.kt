@@ -34,6 +34,7 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Sell
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -188,8 +189,11 @@ fun CollectionScreen() {
     val recent by UserStore.recentAlbums.collectAsState()
     val favs by UserStore.favourites.collectAsState()
     val playlists by UserStore.playlists.collectAsState()
+    val favAlbumIds by UserStore.favAlbums.collectAsState()
+    val genreMap by UserStore.albumGenres.collectAsState()
     Library.albums.collectAsState().value
     val recentAlbums = recent.mapNotNull { Library.album(it) }
+    val favAlbums = favAlbumIds.mapNotNull { Library.album(it) }
     var creating by remember { mutableStateOf(false) }
 
     Column(Modifier.fillMaxSize()) {
@@ -205,6 +209,23 @@ fun CollectionScreen() {
                     }
                 }
                 Spacer(Modifier.height(24.dp))
+                Text("Favourite albums", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(start = 20.dp, bottom = 12.dp))
+                if (favAlbums.isEmpty()) {
+                    Text("Tap the heart on any album to keep it here.", color = TextDim, modifier = Modifier.padding(horizontal = 20.dp))
+                } else {
+                    LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        items(favAlbums, key = { it.id }) { a -> AlbumCard(a, Modifier.width(140.dp)) }
+                    }
+                }
+                Spacer(Modifier.height(20.dp))
+                PlaylistRow(
+                    "Genres",
+                    genreMap.values.flatten().distinct().size.let { if (it == 0) "Tag albums from their album page" else "$it genres" },
+                    icon = { Box(Modifier.size(56.dp).clip(RoundedCornerShape(8.dp)).background(GrooveCard), contentAlignment = Alignment.Center) {
+                        Icon(Icons.Filled.Sell, null, tint = GrooveAccent)
+                    } }
+                ) { Nav.go(Screen.Genres) }
+                Spacer(Modifier.height(12.dp))
                 Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text("Playlists", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
                     TextButton(onClick = { creating = true }) { Icon(Icons.Filled.Add, null); Spacer(Modifier.width(4.dp)); Text("New") }
@@ -212,7 +233,7 @@ fun CollectionScreen() {
             }
             item {
                 PlaylistRow(
-                    "Favourites", "${favs.size} songs",
+                    "Liked songs", "${favs.size} songs · every song you heart",
                     icon = { Box(Modifier.size(56.dp).clip(RoundedCornerShape(8.dp)).background(GrooveAccent), contentAlignment = Alignment.Center) {
                         Icon(Icons.Filled.Favorite, null, tint = Color.Black)
                     } }
@@ -277,14 +298,14 @@ fun PlaylistScreen(id: Long) {
         Column { BackTopBar(""); EmptyState("Playlist not found", "It may have been deleted.") }
         return
     }
-    val ids = if (isFav) favs.toList() else playlist!!.trackIds
+    val ids = if (isFav) favs else playlist!!.trackIds
     val tracks = ids.mapNotNull { Library.track(it) }
     var menu by remember { mutableStateOf(false) }
     var renaming by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
 
     Column(Modifier.fillMaxSize()) {
-        BackTopBar(if (isFav) "Favourites" else playlist!!.name) {
+        BackTopBar(if (isFav) "Liked songs" else playlist!!.name) {
             if (!isFav) {
                 Box {
                     IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, "More") }
@@ -298,7 +319,7 @@ fun PlaylistScreen(id: Long) {
         }
         if (tracks.isEmpty()) {
             EmptyState(
-                if (isFav) "No favourites yet" else "Empty playlist",
+                if (isFav) "No liked songs yet" else "Empty playlist",
                 if (isFav) "Tap the heart on any song to add it here." else "Use \"Add to playlist…\" on any song or album."
             )
             return@Column
